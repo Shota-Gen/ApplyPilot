@@ -56,6 +56,20 @@ REPOS: list[dict] = [
 UA = "Mozilla/5.0 (compatible; ApplyPilot/1.0; +https://github.com/Pickle-Pixel/ApplyPilot)"
 FETCH_TIMEOUT = 60.0
 
+# These repos render eligibility as emoji in their READMEs; the underlying
+# listings.json encodes them as the `sponsorship` field / `active` flag.
+#   🔒 closed                  -> active == False        (already dropped below)
+#   🛂 does not sponsor         -> "Does Not Offer Sponsorship"
+#   🇺🇸 requires U.S. citizenship -> "U.S. Citizenship is Required"
+# Listings whose sponsorship is in this set are never stored (never applied to).
+SKIP_SPONSORSHIP: set[str] = {
+    "Does Not Offer Sponsorship",
+    "U.S. Citizenship is Required",
+}
+
+# Defensive: if a repo ever embeds the markers directly in the role/title text.
+SKIP_TITLE_MARKERS: tuple[str, ...] = ("🛂", "🇺🇸", "🔒")
+
 
 # -- URL normalization -------------------------------------------------------
 
@@ -167,7 +181,7 @@ def _listing_to_job(listing: dict) -> dict | None:
 def discover_repo(conn, repo: dict, accept_locs: list[str],
                   reject_locs: list[str]) -> dict:
     """Fetch, filter, and store one repo's listings. Returns a stat dict."""
-    stat = {"site": repo["site"], "fetched": 0, "active": 0,
+    stat = {"site": repo["site"], "fetched": 0, "active": 0, "ineligible": 0,
             "stored": 0, "duplicate": 0, "filtered": 0, "error": None}
 
     try:
@@ -181,11 +195,18 @@ def discover_repo(conn, repo: dict, accept_locs: list[str],
 
     jobs: list[dict] = []
     for listing in listings:
-        # Mandatory: only currently-open, visible postings. The repos retain
-        # historical/closed rows (SimplifyJobs' file is ~12MB of them).
+        # Mandatory: only currently-open, visible postings (🔒 closed -> dropped).
+        # The repos retain historical/closed rows (SimplifyJobs' file is ~12MB).
         if not (listing.get("active") and listing.get("is_visible")):
             continue
         stat["active"] += 1
+
+        # Eligibility: never apply to 🛂 (no sponsorship) or 🇺🇸 (citizenship).
+        if listing.get("sponsorship") in SKIP_SPONSORSHIP or any(
+            m in (listing.get("title") or "") for m in SKIP_TITLE_MARKERS
+        ):
+            stat["ineligible"] += 1
+            continue
 
         job = _listing_to_job(listing)
         if not job:
@@ -231,8 +252,8 @@ def run_github_discovery(repos: list[dict] | None = None) -> dict:
         if stat["error"]:
             log.warning("  %s: error — %s", repo["site"], stat["error"])
         else:
-            log.info("  %s: %d active, %d new, %d dup, %d filtered",
-                     stat["site"], stat["active"], stat["stored"],
-                     stat["duplicate"], stat["filtered"])
+            log.info("  %s: %d active, %d ineligible, %d new, %d dup, %d filtered",
+                     stat["site"], stat["active"], stat["ineligible"],
+                     stat["stored"], stat["duplicate"], stat["filtered"])
 
     return {"repos": results, "stored": total_new, "duplicate": total_dup}

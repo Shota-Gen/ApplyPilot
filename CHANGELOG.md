@@ -12,6 +12,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   job repos via their structured `listings.json` (currently `SimplifyJobs/New-Grad-Positions`
   and `vanshb03/Summer2027-Internships`). Listings are filtered to `active && is_visible`, their
   URLs normalized, and the apply link pre-set. Repos are hardcoded in `discovery/github.py`.
+  Eligibility filter drops listings the repos mark 🔒 closed (`active: false`), 🛂 no-sponsorship
+  (`sponsorship: "Does Not Offer Sponsorship"`), and 🇺🇸 citizenship-required
+  (`sponsorship: "U.S. Citizenship is Required"`) — these are never stored or applied to.
 - **Per-session source selection** - `applypilot run --sources` and `applypilot apply --sources`
   (comma-separated: `jobspy`, `workday`, `smartextract`, `github`) choose which discovery engines
   run / which jobs to apply to. Defaults come from a new `sources:` list in `searches.yaml`,
