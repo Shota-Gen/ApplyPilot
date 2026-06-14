@@ -85,6 +85,14 @@ def run(
     ),
     min_score: int = typer.Option(7, "--min-score", help="Minimum fit score for tailor/cover stages."),
     workers: int = typer.Option(1, "--workers", "-w", help="Parallel threads for discovery/enrichment stages."),
+    sources: Optional[str] = typer.Option(
+        None, "--sources",
+        help=(
+            "Comma-separated discovery engines for the discover stage "
+            "(jobspy, workday, smartextract, github). "
+            "Defaults to the 'sources:' list in searches.yaml, or all engines."
+        ),
+    ),
     stream: bool = typer.Option(False, "--stream", help="Run stages concurrently (streaming mode)."),
     dry_run: bool = typer.Option(False, "--dry-run", help="Preview stages without executing."),
     validation: str = typer.Option(
@@ -129,6 +137,14 @@ def run(
         )
         raise typer.Exit(code=1)
 
+    # Resolve discovery engines (CLI override or searches.yaml default)
+    from applypilot.config import parse_sources
+    try:
+        source_list = parse_sources(sources)
+    except ValueError as e:
+        console.print(f"[red]{e}[/red]")
+        raise typer.Exit(code=1)
+
     result = run_pipeline(
         stages=stage_list,
         min_score=min_score,
@@ -136,6 +152,7 @@ def run(
         stream=stream,
         workers=workers,
         validation_mode=validation,
+        sources=source_list,
     )
 
     if result.get("errors"):
@@ -147,6 +164,14 @@ def apply(
     limit: Optional[int] = typer.Option(None, "--limit", "-l", help="Max applications to submit."),
     workers: int = typer.Option(1, "--workers", "-w", help="Number of parallel browser workers."),
     min_score: int = typer.Option(7, "--min-score", help="Minimum fit score for job selection."),
+    sources: Optional[str] = typer.Option(
+        None, "--sources",
+        help=(
+            "Comma-separated discovery engines to apply to "
+            "(jobspy, workday, smartextract, github). "
+            "Defaults to the 'sources:' list in searches.yaml, or all engines."
+        ),
+    ),
     model: str = typer.Option("haiku", "--model", "-m", help="Claude model name."),
     continuous: bool = typer.Option(False, "--continuous", "-c", help="Run forever, polling for new jobs."),
     dry_run: bool = typer.Option(False, "--dry-run", help="Preview actions without submitting."),
@@ -231,6 +256,15 @@ def apply(
         return
 
     from applypilot.apply.launcher import main as apply_main
+    from applypilot.config import parse_sources
+
+    # Resolve discovery engines to apply to (CLI override or searches.yaml default).
+    # Ignored when --url targets a specific job.
+    try:
+        source_list = parse_sources(sources)
+    except ValueError as e:
+        console.print(f"[red]{e}[/red]")
+        raise typer.Exit(code=1)
 
     effective_limit = limit if limit is not None else (0 if continuous else 1)
 
@@ -240,6 +274,8 @@ def apply(
     console.print(f"  Model:    {model}")
     console.print(f"  Headless: {headless}")
     console.print(f"  Dry run:  {dry_run}")
+    if not url:
+        console.print(f"  Sources:  {', '.join(source_list)}")
     if url:
         console.print(f"  Target:   {url}")
     console.print()
@@ -253,6 +289,7 @@ def apply(
         dry_run=dry_run,
         continuous=continuous,
         workers=workers,
+        sources=None if url else source_list,
     )
 
 

@@ -5,6 +5,24 @@ All notable changes to ApplyPilot will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- **GitHub listing-repo discovery** - new `github` discovery engine scrapes community-maintained
+  job repos via their structured `listings.json` (currently `SimplifyJobs/New-Grad-Positions`
+  and `vanshb03/Summer2027-Internships`). Listings are filtered to `active && is_visible`, their
+  URLs normalized, and the apply link pre-set. Repos are hardcoded in `discovery/github.py`.
+- **Per-session source selection** - `applypilot run --sources` and `applypilot apply --sources`
+  (comma-separated: `jobspy`, `workday`, `smartextract`, `github`) choose which discovery engines
+  run / which jobs to apply to. Defaults come from a new `sources:` list in `searches.yaml`,
+  falling back to all engines.
+- **`source` column** - every job now records its discovery engine, enabling `apply --sources`
+  scoping. Added via the existing forward-migration path.
+- **Per-source education override** - `profile.json` gains optional `education_default` and
+  `education_by_source` (keyed by a job's `site` label or `source` engine). The tailored resume's
+  education line is code-injected per source, so e.g. an internships repo can render a different
+  degree / graduation date than new-grad roles while everything else stays identical.
+
 ## [0.2.0] - 2026-02-17
 
 ### Added

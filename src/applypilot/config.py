@@ -113,6 +113,57 @@ def load_search_config() -> dict:
     return yaml.safe_load(SEARCH_CONFIG_PATH.read_text(encoding="utf-8"))
 
 
+# Discovery engines that can be toggled per session via `sources:` in
+# searches.yaml or the `--sources` CLI flag.
+DISCOVERY_SOURCES: tuple[str, ...] = ("jobspy", "workday", "smartextract", "github")
+
+
+def load_default_sources() -> list[str]:
+    """Return the configured default set of discovery engines.
+
+    Reads `sources:` from searches.yaml; falls back to all engines if absent
+    or empty. Unknown names are dropped (with all engines as the safety net).
+    """
+    cfg = load_search_config()
+    configured = cfg.get("sources")
+    if not configured:
+        return list(DISCOVERY_SOURCES)
+    valid = [s for s in configured if s in DISCOVERY_SOURCES]
+    return valid or list(DISCOVERY_SOURCES)
+
+
+def parse_sources(cli_value: str | None) -> list[str]:
+    """Resolve the effective discovery engines for a session.
+
+    Args:
+        cli_value: Comma-separated `--sources` value, or None to use the
+                   searches.yaml default.
+
+    Returns:
+        Ordered, de-duplicated list of valid engine names.
+
+    Raises:
+        ValueError: If an unknown engine name is given on the CLI.
+    """
+    if not cli_value:
+        return load_default_sources()
+    requested = [s.strip() for s in cli_value.split(",") if s.strip()]
+    invalid = [s for s in requested if s not in DISCOVERY_SOURCES]
+    if invalid:
+        raise ValueError(
+            f"Unknown source(s): {', '.join(invalid)}. "
+            f"Valid: {', '.join(DISCOVERY_SOURCES)}"
+        )
+    # De-dupe, preserve order
+    seen: set[str] = set()
+    out: list[str] = []
+    for s in requested:
+        if s not in seen:
+            seen.add(s)
+            out.append(s)
+    return out
+
+
 def load_sites_config() -> dict:
     """Load sites.yaml configuration (sites list, manual_ats, blocked, etc.)."""
     import yaml

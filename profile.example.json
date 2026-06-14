@@ -39,6 +39,10 @@
     "current_company": "",
     "target_role": "software engineer"
   },
+  "education_default": "Your University | B.S. Computer Science | Expected Graduation: December 2026",
+  "education_by_source": {
+    "github-intern-vansh": "Your University | M.S. Computer Science | Expected Graduation: December 2027"
+  },
   "skills_boundary": {
     "languages": ["Python", "SQL", "JavaScript"],
     "frameworks": ["FastAPI", "Flask", "React"],

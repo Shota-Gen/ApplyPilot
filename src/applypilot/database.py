@@ -96,6 +96,7 @@ def init_db(db_path: Path | str | None = None) -> sqlite3.Connection:
             description           TEXT,
             location              TEXT,
             site                  TEXT,
+            source                TEXT,
             strategy              TEXT,
             discovered_at         TEXT,
 
@@ -151,6 +152,7 @@ _ALL_COLUMNS: dict[str, str] = {
     "description": "TEXT",
     "location": "TEXT",
     "site": "TEXT",
+    "source": "TEXT",  # discovery engine: jobspy | workday | smartextract | github
     "strategy": "TEXT",
     "discovered_at": "TEXT",
     # Enrichment
@@ -327,14 +329,17 @@ def get_stats(conn: sqlite3.Connection | None = None) -> dict:
 
 
 def store_jobs(conn: sqlite3.Connection, jobs: list[dict],
-               site: str, strategy: str) -> tuple[int, int]:
+               site: str, strategy: str, source: str | None = None) -> tuple[int, int]:
     """Store discovered jobs, skipping duplicates by URL.
 
     Args:
         conn: Database connection.
-        jobs: List of job dicts with keys: url, title, salary, description, location.
+        jobs: List of job dicts with keys: url, title, salary, description, location,
+              and optionally application_url (pre-set apply link).
         site: Source site name (e.g. "RemoteOK", "Dice").
         strategy: Extraction strategy used (e.g. "json_ld", "api_response", "css_selectors").
+        source: Discovery engine name (jobspy | workday | smartextract | github).
+                Used by `apply --sources` to scope which jobs get applied to.
 
     Returns:
         Tuple of (new_count, duplicate_count).
@@ -349,10 +354,11 @@ def store_jobs(conn: sqlite3.Connection, jobs: list[dict],
             continue
         try:
             conn.execute(
-                "INSERT INTO jobs (url, title, salary, description, location, site, strategy, discovered_at) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                "INSERT INTO jobs (url, title, salary, description, location, site, source, "
+                "strategy, discovered_at, application_url) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (url, job.get("title"), job.get("salary"), job.get("description"),
-                 job.get("location"), site, strategy, now),
+                 job.get("location"), site, source, strategy, now, job.get("application_url")),
             )
             new += 1
         except sqlite3.IntegrityError:

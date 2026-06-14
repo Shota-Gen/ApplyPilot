@@ -663,8 +663,12 @@ def scrape_site_batch(
 
                 if status in ("ok", "partial"):
                     stats[status] += 1
+                    # COALESCE keeps a pre-set application_url (e.g. GitHub-sourced
+                    # jobs whose listing URL is already the apply link) when the
+                    # scraper couldn't find an apply button on the page.
                     conn.execute(
-                        "UPDATE jobs SET full_description = ?, application_url = ?, "
+                        "UPDATE jobs SET full_description = ?, "
+                        "application_url = COALESCE(?, application_url), "
                         "detail_scraped_at = ?, detail_error = NULL WHERE url = ?",
                         (result.get("full_description"), result.get("application_url"), now, url),
                     )

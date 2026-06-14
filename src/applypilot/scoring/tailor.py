@@ -218,9 +218,32 @@ def extract_json(raw: str) -> dict:
     raise ValueError("No valid JSON found in LLM response")
 
 
+# ── Per-source education override ─────────────────────────────────────────
+
+def resolve_education_line(profile: dict, job: dict | None = None) -> str | None:
+    """Resolve the education line for a job, honoring per-source overrides.
+
+    Lookup order:
+      1. profile["education_by_source"][job["site"]]   (per-repo / per-site)
+      2. profile["education_by_source"][job["source"]] (per-engine)
+      3. profile["education_default"]                  (global default)
+      4. None  -> caller falls back to the LLM-generated education field
+
+    This lets e.g. an internships repo render a different degree / graduation
+    date than new-grad roles, while everything else stays identical.
+    """
+    overrides = profile.get("education_by_source") or {}
+    if job and overrides:
+        for key in (job.get("site"), job.get("source")):
+            if key and key in overrides:
+                return overrides[key]
+    return profile.get("education_default")
+
+
 # ── Resume Assembly (profile-driven header) ──────────────────────────────
 
-def assemble_resume_text(data: dict, profile: dict) -> str:
+def assemble_resume_text(data: dict, profile: dict,
+                         education_override: str | None = None) -> str:
     """Convert JSON resume data to formatted plain text.
 
     Header (name, location, contact) is ALWAYS code-injected from the profile,
@@ -229,6 +252,9 @@ def assemble_resume_text(data: dict, profile: dict) -> str:
     Args:
         data: Parsed JSON resume from the LLM.
         profile: User profile dict from load_profile().
+        education_override: If set, this exact string is used for the education
+            line instead of the LLM-generated value (guarantees the right
+            degree / graduation date per source).
 
     Returns:
         Formatted resume text.
@@ -290,9 +316,11 @@ def assemble_resume_text(data: dict, profile: dict) -> str:
             lines.append(f"- {sanitize_text(b)}")
         lines.append("")
 
-    # Education
+    # Education -- code-inject the override when provided (deterministic),
+    # otherwise use the LLM-generated value.
     lines.append("EDUCATION")
-    lines.append(sanitize_text(str(data.get("education", ""))))
+    education = education_override if education_override else data.get("education", "")
+    lines.append(sanitize_text(str(education)))
 
     return "\n".join(lines)
 
@@ -384,6 +412,7 @@ def tailor_resume(
     tailored = ""
     client = get_client()
     tailor_prompt_base = _build_tailor_prompt(profile)
+    education_override = resolve_education_line(profile, job)
 
     for attempt in range(max_retries + 1):
         report["attempts"] = attempt + 1
@@ -419,12 +448,12 @@ def tailor_resume(
             if attempt < max_retries:
                 continue
             # Last attempt — assemble whatever we got
-            tailored = assemble_resume_text(data, profile)
+            tailored = assemble_resume_text(data, profile, education_override)
             report["status"] = "failed_validation"
             return tailored, report
 
         # Assemble text (header injected by code, em dashes auto-fixed)
-        tailored = assemble_resume_text(data, profile)
+        tailored = assemble_resume_text(data, profile, education_override)
 
         # Layer 2: LLM judge (catches subtle fabrication) — skipped in lenient mode
         if validation_mode == "lenient":
