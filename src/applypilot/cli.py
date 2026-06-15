@@ -293,6 +293,66 @@ def apply(
     )
 
 
+@app.command(name="apply-links")
+def apply_links(
+    urls: Optional[list[str]] = typer.Argument(
+        None, help="One or more application URLs to apply to directly."
+    ),
+    file: Optional[str] = typer.Option(
+        None, "--file", "-f", help="Path to a text file with one URL per line."
+    ),
+    no_apply: bool = typer.Option(
+        False, "--no-apply", help="Ingest + prep (enrich/score/tailor/cover) but don't submit."
+    ),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Fill forms without clicking Submit."),
+    workers: int = typer.Option(1, "--workers", "-w", help="Parallel browser workers for the apply step."),
+    model: str = typer.Option("haiku", "--model", "-m", help="Claude model name."),
+    headless: bool = typer.Option(False, "--headless", help="Run browsers in headless mode."),
+    validation: str = typer.Option("normal", "--validation", help="Tailor/cover validation: strict|normal|lenient."),
+) -> None:
+    """Apply to specific application links you provide.
+
+    Ingests the links into the shared job database (so the general auto-applier
+    won't re-apply to them), scores them for visibility (without gating),
+    tailors a resume + cover letter, then submits. Example:
+
+        applypilot apply-links https://… https://…
+        applypilot apply-links --file links.txt --dry-run
+    """
+    _bootstrap()
+
+    from applypilot.config import check_tier, PROFILE_PATH as _profile_path
+
+    # Prep needs an LLM (Tier 2); submitting needs Chrome + Claude (Tier 3).
+    check_tier(2 if no_apply else 3, "apply-links")
+
+    if not _profile_path.exists():
+        console.print(
+            "[red]Profile not found.[/red] Run [bold]applypilot init[/bold] first."
+        )
+        raise typer.Exit(code=1)
+
+    if not urls and not file:
+        console.print("[red]Provide at least one URL argument or --file.[/red]")
+        raise typer.Exit(code=1)
+
+    valid_modes = ("strict", "normal", "lenient")
+    if validation not in valid_modes:
+        console.print(f"[red]Invalid --validation:[/red] choose from {', '.join(valid_modes)}")
+        raise typer.Exit(code=1)
+
+    from applypilot.apply_links import run_apply_links
+
+    try:
+        run_apply_links(
+            urls=urls, file=file, no_apply=no_apply, dry_run=dry_run,
+            headless=headless, model=model, workers=workers, validation_mode=validation,
+        )
+    except FileNotFoundError as e:
+        console.print(f"[red]{e}[/red]")
+        raise typer.Exit(code=1)
+
+
 @app.command()
 def status() -> None:
     """Show pipeline statistics from the database."""

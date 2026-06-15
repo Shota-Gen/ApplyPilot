@@ -8,6 +8,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **`apply-links` direct-link workflow** - `applypilot apply-links <url…>` / `--file links.txt`
+  applies to application links you provide. Ingests them into the shared `jobs` table as
+  `source="manual"` (normalized-URL PK → dedups against the general auto-applier, never
+  re-applies an already-submitted job), then for those links only: enriches the JD, scores for
+  visibility (shown, not used to gate), tailors a resume (or falls back to the base resume when
+  the JD can't be scraped so the link stays applyable), writes a cover letter, and submits via the
+  normal browser flow scoped to `--sources manual`. Flags: `--no-apply` (prep only), `--dry-run`,
+  `--workers`, `--model`, `--headless`, `--validation`. New module `applypilot/apply_links.py`.
 - **GitHub listing-repo discovery** - new `github` discovery engine scrapes community-maintained
   job repos via their structured `listings.json` (currently `SimplifyJobs/New-Grad-Positions`
   and `vanshb03/Summer2027-Internships`). Listings are filtered to `active && is_visible`, their
