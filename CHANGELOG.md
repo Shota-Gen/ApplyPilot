@@ -10,11 +10,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - **`apply-links` direct-link workflow** - `applypilot apply-links <url…>` / `--file links.txt`
   applies to application links you provide. Ingests them into the shared `jobs` table as
-  `source="manual"` (normalized-URL PK → dedups against the general auto-applier, never
-  re-applies an already-submitted job), then for those links only: enriches the JD, scores for
-  visibility (shown, not used to gate), tailors a resume (or falls back to the base resume when
-  the JD can't be scraped so the link stays applyable), writes a cover letter, and submits via the
-  normal browser flow scoped to `--sources manual`. Flags: `--no-apply` (prep only), `--dry-run`,
+  `source="manual"` (normalized-URL PK). A link already in the DB but NOT yet applied is *adopted*
+  into the manual flow so it still gets applied; an already-applied link is skipped (never
+  re-applied). For those links only: enriches the JD, scores for visibility (shown, not used to
+  gate), and tailors a resume — even without a JD the tailor trims the master to one page; the raw
+  master is never uploaded, and if tailoring errors the link is skipped. Reuses an existing
+  tailored resume / cover letter if present. Submits via the normal browser flow scoped to
+  `--sources manual`. Flags: `--no-apply` (prep only), `--dry-run`,
   `--workers`, `--model`, `--headless`, `--validation`. New module `applypilot/apply_links.py`.
 - **GitHub listing-repo discovery** - new `github` discovery engine scrapes community-maintained
   job repos via their structured `listings.json` (currently `SimplifyJobs/New-Grad-Positions`
